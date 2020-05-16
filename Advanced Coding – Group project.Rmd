@@ -25,19 +25,19 @@ abstract: This document presents a code which allows to compare the portfolio pe
 
 Fragen Patrik:
 
-- Daily or weekly base of log returns?
+- Daily or weekly base of log returns? --> weekly
 - Variablen zeile 65/66: (export_import data): wo gebraucht?
 - Wieso diese 9/23 stocks gezogen? Randomly oder irgend ein Muster dahinter?
-- Was sind Cali years (Zeile 119 dein Code)
+- Was sind Cali years (Zeile 119 dein Code) --> das sind dJohr wo brucht wärde um dCovariance matrix zerstelle fürs portfolio
 - Was genau machen die Portfolioformeln um Zeile 211-225 (dein code)? =  ergänze das im Markdown um Zeile 263
-- Was macht reb_int in der Funktion Zeile 232 (dein Code)?
+- Was macht reb_int in der Funktion Zeile 232 (dein Code)? --> Definiert wie oft sPortfolio rebalanced wird (wenn i dini Frog richtig verstande)
 
 # Overview
 
-The minimum variance portfolio is one of the most basic investment theories developed by Harry Markowitz in 1952 [@markowitz7portfolio]. It states that for each combination of securities an efficient risk/return relationship ("efficient frontier") exists based on which a rational investor would choose his portfolio weights based on his individual risk/return preference [@markowitz7portfolio,p. 85-91]. This ground-breaking work got Harry Markovitz the Nobel Prize in Economics in 1990 and is the base for many more models in modern portfolio theory such as the Capital Asset Pricing Model [@sharpe1964capital; @nobelprize.org]. 
+The minimum variance portfolio is one of the most basic investment theories developed by Harry Markowitz in 1952 [@markowitz7portfolio]. It states that for each combination of securities, an efficient risk/return relationship ("efficient frontier") exists based on which a rational investor would choose his portfolio weights given his or her individual risk/return preference [@markowitz7portfolio,p. 85-91]. This ground-breaking work got Harry Markovitz the Nobel Prize in Economics in 1990 and is the base for numerous following models in modern portfolio theory such as the Capital Asset Pricing Model [@sharpe1964capital; @nobelprize.org]. 
 
-In this paper, we build on this model to analyze how the portfolio return differs between a standard equal-weight portfolio and a minimum variance optimized portfolio where both portfolios are rebalanced on a weekly base. We do this in a five-step approach:
-First, we gather the daily closing price from Thomson Reuters Eikon for nine stocks with a time range from 13.03.1986 until 01.03.2019. Second, we transform them into log returns (daily or weekly base?). Based on these numbers, we calculate the covariance matrix for the minimum variance portfolio in step three and calculate the respective portfolio weights in step four. Lastly, we calculate the portfolio values and plot their performance and weight development for both equal-weight and minimum variance optimized portfolios.
+In this paper, we build on this model to analyze how the portfolio return differs between a standard equal-weight portfolio, i.e. investing the same amount of money into each asset in a portfolio, and a minimum variance optimized portfolio. While the weights of the equal-weight portfolio are constant over time, we recalculate (or rebalance) the mean-variance portfolio every week. We do this in a five-step approach:
+First, we gather the daily closing price from Thomson Reuters Eikon for nine stocks with a time range from 13.03.1986 until 01.03.2019. Second, we transform them into weekly log returns, which is the most commonly used approach of calculatig returns in financial research. Based on these numbers, we calculate the covariance matrix of the stock returns in step three. In essence, the covariance matrix summarises the relationship between the returns of each assets in a two-dimensional matrix. This allows us to calculate the respective portfolio weights in step four. Lastly, we calculate the portfolio values and plot their performance and weight development for both equal-weight and minimum variance optimized portfolios.
 
 The expected return for both portfolios is $$E=\sum_{i=1}^N X_i \mu_i$$
 
@@ -49,7 +49,7 @@ In our analysis, the performance differences are based on different $X_i$'s in t
 $$X = \frac{\sum^{-1} 1}{1'\sum^{-1} 1}$$
 With $\sum^{-1}$ being the inverted covariance matrix, $1$ being a vector of 1's with a length of $N$ and $1'$ being a transposed vector of 1's.
 
-The following paragraphs will now give a deep-dive on the code and explain in a step-by-step approach what each chunk is doing.
+Having discussed the mathematics of this optimisation approach on a high level, the following paragraphs will now give a deep-dive on the code and explain in a step-by-step approach what each chunk is doing.
 
 # Code description
 ## 1 R environment preparation
@@ -144,7 +144,7 @@ source_data <- function(source) {
 
 stock_prices <- source_data(source)
 ```
-The following output depicts the head of this time series object. As we can see, the data is on a weekly base and stock price information is included for the nine stocks in the variable *ticker_csv*:
+The following output depicts the head of this time series object. As we can see, the data is on a weekly basis and stock price information is included for the nine stocks in the variable *ticker_csv*:
 ``` {r echo = FALSE}
 head(stock_prices)
 ```
@@ -170,7 +170,7 @@ The following output depicts the data conversion:
 ``` {r echo = FALSE}
 head(log_returns)
 ```
-Given that now we have the basic data for our analysis we are going to define the date inputs for the time window we will base our analysis on. In this case, we decided to choose January 1, 2012 as starting date with the portfolio being active for seven years, ten cali years (what is it Patrik?) and 52 weeks per year. The analysis output will be saved in the respective directory path of the variable *folder*:
+Given that we now have the basic data for our analysis we are going to define the date inputs for the time window we will base our analysis on. In this case, we decided to choose January 1, 2012 as starting date with the portfolio being active for seven years, ten calibration years and 52 weeks per year. The calibration years refers to the time horizon of historical data which the model uses at each rebalancing point, thus every week, to recalculate the new weights of the mean variance portfolio. The analysis output will be saved in the respective directory path of the variable *folder*:
 ```{r, tidy.opts=list(width.cutoff=60)}
 # Input for the dates                            ### << INPUT <<
 start_date   <- "2012-01-01"
@@ -181,7 +181,7 @@ folder       <- paste("Output/", year(start_date), "-", year(start_date) +
                         port_span - 1, 
                       "_", cali_years, "cali_", reb_int, sep = "")
 ```
-Based on these parameters, we do X (Patrik, what are we doing here? :D)
+Based on these parameters, we define a function to assign the appropriate dates in the correct format to our data set. In doing so, we also determine the correct dates for the applied calibration years. This is crucial as the mechanics of our model rely on a consistent date format among the calibration and the portfolio span. 
 ``` {r  tidy.opts=list(width.cutoff=60)}
 # Define function for calculating dates: This function also checks 
 #that port_start and cali_start have the same length and cuts the longer if not
@@ -218,7 +218,7 @@ calc_dates <- function(stock_prices, start_date, port_span, cali_years, reb_int)
   }
 }
 ```
-Through these steps, we then assign the relevant dates and subsets of the stock returns into the respective variables. Through this, we align the overall data with *port_data* and *cali_data* (specify port_data und cali_data based on input Patrik):
+Through these steps, we then assign the relevant dates and subsets of the stock returns into the respective variables. Through this, we align the overall data with *port_data* and *cali_data* which are used as the dates to calculate and rebalance our portfolio in the following steps.
 ```{r  tidy.opts=list(width.cutoff=60)}
 # Calculate dates
 dates <- calc_dates(stock_prices, start_date, port_span, cali_years, reb_int)
@@ -263,7 +263,7 @@ fore_cor_stat      <- stat_output[[2]]
 ```
 
 ## 4 Portfolio weights calculation
-Given that we now have the coviance matrices, we can calculate the portfolio weights. First, we program the functions to calculate the minimum variance portfolio weights. The function *calc_pf_weights* calculates the weights for each individual asset/portfolio (Patrik?) whereas the function *calc_all_pf_weights* returns the weights for the combined portfolio (Patrik stimmt das?):
+Given that we now have the coviance matrices, we can calculate the portfolio weights. First, we program the functions to calculate the minimum variance portfolio weights. The function *calc_pf_weights* allows to calulate the optimal weights for a portfolio at a given point in time. This is then used in the following function, *calc_all_pf_weights*, which calculates all portfolio weights over the entire analysed time horizon. In our case this allows to copmute the portfolio weights for at every rebelancing point (thus each week):
 ``` {r tidy.opts=list(width.cutoff=60)}
 # Define functions to calculate (all) portfolio weights based on goal of
 #mean-variance 
@@ -319,7 +319,7 @@ As we can see, the weights significantly differ between the minimum variance por
 
 ## 5 Portfolio performance calculation
 
-The function *calc_port_returns* calculates the respective portfolio return accounting for the individual stock returns, portfolio weights and the rebalancing intervall (Patrik does it rebalance? If yes, how?):
+The function *calc_port_returns* calculates the respective portfolio returns accounting for the individual stock returns, portfolio weights and the changing weights for the mean- variance portfolio as defined by the rebalancing interval:
 ```{r tidy.opts=list(width.cutoff=60)}
 # Define function to calc portfolio returns and give the output of a 
 #return time series
@@ -365,7 +365,7 @@ Based on these values, we create the outputs in our sixth and last step.
 
 ## 6 Outputs
 
-As first output, we generate a csv file containing the annualised mean and annualised standard deviation of each portfolio. Hereby, *ann_fac* is the annualisation factor based on the 52 weeks of the year specified at the beginning. We save the output in a new output folder of the chosen work directory:
+As first output, we generate a csv file containing the annualised mean and annualised standard deviation (the most basic measure of risk) of each portfolio. Hereby, *ann_fac* is the annualisation factor based on the 52 weeks of the year specified at the beginning. We save the output in a new output folder of the chosen work directory:
 ```{r tidy.opts=list(width.cutoff=60)}
 # Table output
 ann_fac <- wpy
@@ -384,7 +384,7 @@ The following output depicts the result for m:
 # Table output
 print(m)
 ```
-We can see that for the minimum variance strategy the annualised mean is way higher with a simultaneously lower standard deviation, making the strategy the more successful one for the analysed stocks and time period.
+We can see that for the minimum variance strategy the annualised mean is significantly higher with a simultaneously lower standard deviation, making the strategy the more successful one for the analysed stocks and time period.
 
 In a next step, we plot the portfolio performance development and output it in pdf format. The output is saved in the new output folder we created above together with the table output. To create the plot, we read our data into a new data frame *p* to concentrate the data into one variable which eases code reading. Then we set up the plot and define the several axes and bars:
 ```{r results = 'hide', message = FALSE, warning = FALSE, tidy.opts=list(width.cutoff=60)}
@@ -412,7 +412,7 @@ ggplot(p) +
 dev.off()
 ```
 
-The resulting and as pdf saved chart looks as follows for the portfolio development:
+The resulting and as pdf saved chart looks as follows for the portfolio development. One can clearly see that the dynamic approach to portfolio computation has performed better over the selected time horizon:
 
 ```{r echo = FALSE, warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=60)}
 ggplot(p) + 
@@ -429,7 +429,7 @@ ggplot(p) +
                      cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
 ```
 
-Last but not least, we plot the weight development of the two portfolios and save them as a pdf in the output folder as well:
+Last but not least, we plot the weight development of the mean-variance portfolio to get a better understanding on how dynamic the model has adjusted its portfolio weights over the time horizon: 
 ```{r results = 'hide', message = FALSE, warning = FALSE, tidy.opts=list(width.cutoff=60)}
 Date <- as.Date(names(all_forecast_stat))
 
@@ -476,7 +476,7 @@ ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) +
 dev.off()
 ```
 
-The resulting chart looks as follows:
+The resulting chart looks as follows. While changes in weights can be observed, this chart makes clear that the weights for the individual stocks have changed only gradually throughout the seven years. Probably, the inclusion of more volatile stocks in our portfolio would lead to a different result here with more substantial changes in weightings over time.
 
 ```{r echo = FALSE, warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=60)}
 ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
@@ -502,4 +502,4 @@ ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) +
                      cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
 ```
 
-With this chart, we reached the end of the script. Of course, the user can play around with the different parameters (such as time period, frequency of rebalancing, stocks in the portfolio) to get different results and complement the current charts with different outputs.
+With this chart, we reached the end of the script. Of course, the user can play around with the different parameters (such as time period, frequency of rebalancing, stocks in the portfolio) to get different results and complement the current charts with different outputs. By doing so, one could further investigate the established thesis of whether the mean-variance approach to portfolio optimisation is truly superior to an equal-weights approach.
