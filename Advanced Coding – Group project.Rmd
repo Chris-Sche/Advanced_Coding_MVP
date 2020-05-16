@@ -22,16 +22,6 @@ abstract: This document presents a code which allows to compare the portfolio pe
   and graphically illustrates the results.
 ---
 
-
-Fragen Patrik:
-
-- Daily or weekly base of log returns? --> weekly
-- Variablen zeile 65/66: (export_import data): wo gebraucht?
-- Wieso diese 9/23 stocks gezogen? Randomly oder irgend ein Muster dahinter?
-- Was sind Cali years (Zeile 119 dein Code) --> das sind dJohr wo brucht wärde um dCovariance matrix zerstelle fürs portfolio
-- Was genau machen die Portfolioformeln um Zeile 211-225 (dein code)? =  ergänze das im Markdown um Zeile 263
-- Was macht reb_int in der Funktion Zeile 232 (dein Code)? --> Definiert wie oft sPortfolio rebalanced wird (wenn i dini Frog richtig verstande)
-
 # Overview
 
 The minimum variance portfolio is one of the most basic investment theories developed by Harry Markowitz in 1952 [@markowitz7portfolio]. It states that for each combination of securities, an efficient risk/return relationship ("efficient frontier") exists based on which a rational investor would choose his portfolio weights given his or her individual risk/return preference [@markowitz7portfolio,p. 85-91]. This ground-breaking work got Harry Markovitz the Nobel Prize in Economics in 1990 and is the base for numerous following models in modern portfolio theory such as the Capital Asset Pricing Model [@sharpe1964capital; @nobelprize.org]. 
