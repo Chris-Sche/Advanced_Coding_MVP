@@ -5,14 +5,16 @@ author:
 - Christoph Schenker (christoph.schenker@student.unisg.ch)
 date: "May 16, 2020"
 output:
-  html_document:
-    df_print: paged
   pdf_document:
     citation_package: natbib
     fig_caption: yes
     keep_tex: yes
     latex_engine: pdflatex
+  html_document:
+    df_print: paged
 biblio-style: apsr
+header-includes:
+    - \usepackage{setspace}\doublespacing
 fontfamily: mathpazo
 fontsize: 11pt
 geometry: margin=1in
@@ -369,8 +371,9 @@ row.names(m)       <- c("Annualised mean", "Annualised standard deviation")
 if(dir.exists(folder) == FALSE) (dir.create(file.path(folder), recursive = TRUE))
 write.csv(m, file = paste(folder, "/stats.csv", sep = ""))
 ```
-The following output depicts the result for m:
-```{r tidy.opts=list(width.cutoff=60)}
+
+The following output depicts the output result for both strategies:
+```{r tidy.opts=list(width.cutoff=60), echo = FALSE}
 # Table output
 print(m)
 ```
@@ -397,7 +400,8 @@ ggplot(p) +
   labs(title = paste("Performance from ", year(start_date), "-",
                      year(start_date) + port_span - 1, ", ", 
                      cali_years, " years calibration, ", reb_int, 
-                     " rebalancing", sep = ""))
+                     " rebalancing", sep = "")) +
+  theme(plot.title = element_text(size = 12))
 
 dev.off()
 ```
@@ -415,8 +419,12 @@ ggplot(p) +
     sec.axis = sec_axis(~ . * 50 / max(max(p$EQL), max(p$STAT)), name = "Difference"),
     limits = c(min(p$DIFF) * max(max(p$EQL), max(p$STAT)) /  50, max(max(p$EQL), max(p$STAT)))) + 
   scale_colour_manual(name = '', values = c('STAT' = 'black', 'EQL' = 'red')) +
-  labs(title = paste("Performance from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
-                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
+  labs(title = paste("Performance from ", year(start_date), "-", year(start_date) 
+                     + port_span - 1, ", ", 
+                     cali_years, " years calibration, ", reb_int, " rebalancing", 
+                     sep = "")) +
+  theme(plot.title = element_text(size = 12))
+
 ```
 
 Last but not least, we plot the weight development of the mean-variance portfolio to get a better understanding on how dynamic the model has adjusted its portfolio weights over the time horizon: 
@@ -441,7 +449,8 @@ ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) +
   labs(title = paste("Minimum variance weights from ", year(start_date), "-", 
                      year(start_date) + port_span - 1, ", ", 
                      cali_years, " years calibration, ", reb_int, 
-                     " rebalancing", sep = ""))
+                     " rebalancing", sep = "")) +
+  theme(plot.title = element_text(size = 12))
 dev.off()
 
 if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_stat.pdf", sep = ""))}
@@ -459,10 +468,12 @@ weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights,
 ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
   geom_area(aes(fill = Company), position = 'stack') + 
   scale_fill_brewer(palette = "Spectral") + 
-  labs(title = paste("Minimum variance weights from ", year(start_date), "-", 
-                     year(start_date) + port_span - 1, ", ", 
+  labs(title = paste("Minimum variance weights (", year(start_date), "-", 
+                     year(start_date) + port_span - 1, "), ", 
                      cali_years, " years calibration, ", reb_int, 
-                     " rebalancing", sep = ""))
+                     " rebalancing", sep = "")) +
+  theme(plot.title = element_text(size = 12))
+
 dev.off()
 ```
 
@@ -472,8 +483,11 @@ The resulting chart looks as follows. While changes in weights can be observed, 
 ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
   geom_area(aes(fill = Company), position = 'stack') + 
   scale_fill_brewer(palette = "Spectral") + 
-  labs(title = paste("Minimum variance weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
-                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
+  labs(title = paste("Minimum variance weights (", year(start_date), "-",
+                     year(start_date) + port_span - 1, "), ", 
+                     cali_years, " years calibration, ", reb_int, " rebalancing",
+                     sep = "")) +
+  theme(plot.title = element_text(size = 12))
 dev.off()
 
 if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_stat.pdf", sep = ""))}
