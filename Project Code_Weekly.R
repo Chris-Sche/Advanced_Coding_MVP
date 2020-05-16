@@ -291,8 +291,8 @@ ggplot(p) +
     limits = c(min(p$DIFF) * max(max(p$EQL), max(p$STAT)) /  50, max(max(p$EQL), max(p$STAT)))) + 
   scale_colour_manual(name = '', values = c('STAT' = 'black', 'EQL' = 'red')) +
   labs(title = paste("Performance from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
-                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
-
+                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = "")) +
+  theme(plot.title = element_text(size = 12))
 dev.off()
 
 # --------------- Plot: Weight development ----------------
@@ -311,8 +311,9 @@ weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights, ticker_sort[1]
 ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
   geom_area(aes(fill = Company), position = 'stack') + 
   scale_fill_brewer(palette = "Spectral") + 
-  labs(title = paste("STAT weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
-                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
+  labs(title = paste("Minimum variance weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
+                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = "")) +
+  theme(plot.title = element_text(size = 12))
 dev.off()
 
 if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_stat.pdf", sep = ""))}
@@ -327,8 +328,9 @@ weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights, ticker_sort[1]
 ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
   geom_area(aes(fill = Company), position = 'stack') + 
   scale_fill_brewer(palette = "Spectral") + 
-  labs(title = paste("STAT weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
-                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
+  labs(title = paste("Minimum variance weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
+                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = "")) +
+  theme(plot.title = element_text(size = 12))
 dev.off()
 
 
