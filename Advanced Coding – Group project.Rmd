@@ -1,0 +1,505 @@
+---
+title: "Minimum Variance Portfolion in Action"
+author:
+- Patrik Münch (patrik.muench@student.unisg.ch)
+- Christoph Schenker (christoph.schenker@student.unisg.ch)
+date: "May XX, 2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    citation_package: natbib
+    fig_caption: yes
+    keep_tex: yes
+    latex_engine: pdflatex
+biblio-style: apsr
+fontfamily: mathpazo
+fontsize: 11pt
+geometry: margin=1in
+bibliography: citation.bib
+abstract: This document presents a code which allows to compare the portfolio performance
+  of several stocks between an equal-weight and a mean-variance optimized portfolio
+  and graphically illustrates the results.
+---
+
+
+Fragen Patrik:
+
+- Daily or weekly base of log returns?
+- Variablen zeile 65/66: (export_import data): wo gebraucht?
+- Wieso diese 9/23 stocks gezogen? Randomly oder irgend ein Muster dahinter?
+- Was sind Cali years (Zeile 119 dein Code)
+- Was genau machen die Portfolioformeln um Zeile 211-225 (dein code)? =  ergänze das im Markdown um Zeile 263
+- Was macht reb_int in der Funktion Zeile 232 (dein Code)?
+
+# Overview
+
+The minimum variance portfolio is one of the most basic investment theories developed by Harry Markowitz in 1952 [@markowitz7portfolio]. It states that for each combination of securities an efficient risk/return relationship ("efficient frontier") exists based on which a rational investor would choose his portfolio weights based on his individual risk/return preference [@markowitz7portfolio,p. 85-91]. This ground-breaking work got Harry Markovitz the Nobel Prize in Economics in 1990 and is the base for many more models in modern portfolio theory such as the Capital Asset Pricing Model [@sharpe1964capital; @nobelprize.org]. 
+
+In this paper, we build on this model to analyze how the portfolio return differs between a standard equal-weight portfolio and a minimum variance optimized portfolio where both portfolios are rebalanced on a weekly base. We do this in a five-step approach:
+First, we gather the daily closing price from Thomson Reuters Eikon for nine stocks with a time range from 13.03.1986 until 01.03.2019. Second, we transform them into log returns (daily or weekly base?). Based on these numbers, we calculate the covariance matrix for the minimum variance portfolio in step three and calculate the respective portfolio weights in step four. Lastly, we calculate the portfolio values and plot their performance and weight development for both equal-weight and minimum variance optimized portfolios.
+
+The expected return for both portfolios is $$E=\sum_{i=1}^N X_i \mu_i$$
+
+Whereas the variance is $$V=\sum_{i=1}^N\sum_{j=1}^N \sigma_{ij}X_iX_j$$
+
+With $X$ being the weight of the asset i or j.
+
+In our analysis, the performance differences are based on different $X_i$'s in the strategies. This, because for the equal-weight portfolios the weight of each stock is the same whereas for the minimum variance portfolio the asset weights differ and are proportional to the inverse of the covariance matrix:
+$$X = \frac{\sum^{-1} 1}{1'\sum^{-1} 1}$$
+With $\sum^{-1}$ being the inverted covariance matrix, $1$ being a vector of 1's with a length of $N$ and $1'$ being a transposed vector of 1's.
+
+The following paragraphs will now give a deep-dive on the code and explain in a step-by-step approach what each chunk is doing.
+
+# Code description
+## 1 R environment preparation
+
+In the first step, we download and attach the respective R packages which are required to run the code. We set up the code so that it checks for missing packages and directly installs them instead of working e.g. with the *require()* function and make the user install the packages manually. The following paragraph shows which code we used to do so:
+``` {r  warnings = FALSE, message = FALSE, tidy = TRUE, tidy.opts=list(width.cutoff=60)}
+#install missing packages for the code
+list_of_packages <- c("rugarch", "rmgarch", "xts", "lubridate", "Quandl",
+                      "ggplot2", "tidyr", "tidyverse", "scales", "tseries",
+                      "reshape2", "fBasics", "gridExtra", "rstudioapi",
+                      "formatR")
+new_packages <- list_of_packages[!(list_of_packages %in% installed.packages()[,"Package"])]
+if(length(new_packages)) install.packages(new_packages)
+
+#load and attach packages
+library(rugarch)
+library(rmgarch)
+library(xts)
+library(lubridate)
+library(Quandl)
+library(ggplot2)
+library(tidyr)
+library(tidyverse)
+library(scales)
+library(tseries)
+library(reshape2)
+library(fBasics)
+library(gridExtra)
+library(rstudioapi)
+library(formatR)
+```
+
+Then, we remove all current variables in the R environment to prevent any interferences with our code:
+``` {r}
+rm(list = ls())
+```
+In a final step to prepare the environment, we let the user choose the working directory in which he saved the input csv file. Through this, we ensure that the code finds the required input sources and also saves the output into the same folder where the input is at a later stage:
+```
+#make user select the directory with the input csv document
+WorkingDir <- NULL
+
+while(is.null(WorkingDir)){
+  WorkingDir <- selectDirectory(
+    caption = "Please select the directory in which the input file is saved",
+    label = "Here is the input folder",
+    path = getActiveProject()
+  )
+}
+setwd(WorkingDir)
+```
+Now, we are ready to load and prepare the data as we have the required packages and working directory for the input file ready.
+
+## 2 Data preparation
+
+In the next step, we prepare our raw data on which the analysis will be based. First, we define different parameters which are used several times in the code to increase consistency:
+``` {r}
+# Set parameters                                 
+reb_int      <- "weekly" 
+source       <- "csv" 
+export_plot  <- TRUE
+export_data  <- TRUE # is this used? if not delete
+import_data  <- TRUE # is this used? if not delete
+```
+Then we define the stock tickers which we consider in our analysis. Given that we downloaded data for 23 different stocks from Eikon, we can change the tickers to any of these 23 (see the csv input file for all tickers) to run the subsequent analysis:
+``` {r}
+# Obtain stock data
+ticker_csv   <- c("SAMSUNG",
+                  "SASOL",
+                  "DYCOM",
+                  "NESTLE",
+                  "NOVARTIS",
+                  "APPLE",
+                  "ROYALD",
+                  "NAVISTAR",
+                  "UBS")
+```
+Next, we read in the source data through creating the function *source_data*. This initial data consists of a csv file which is in the folder the user chose in the beginning. The data is then converted into the *xts* time series format and into weekly data points. Also we set the rebalancing interval and pick the stocks based on the *ticker_csv* variable from the step before:
+``` {r, tidy.opts=list(width.cutoff=60)}
+source_data <- function(source) {
+    toDate <- function(x) as.Date(x, origin = "1986-03-86", format = "%d.%m.%y")
+    Time_series_zoo <- read.zoo("RS_Time series_v3.csv", header = TRUE, sep = ","
+                                , FUN = toDate)
+    Time_series_xts <- as.xts(Time_series_zoo)
+    
+    # Convert daily to weekly data
+    Time_series_weekly_xts <- to.weekly(Time_series_xts, OHLC = FALSE)
+    
+    # Set rebalancing interval and pick stocks    << INPUT <<
+    stock_prices <- Time_series_weekly_xts[, ticker_csv]
+    return(stock_prices)
+    }
+
+stock_prices <- source_data(source)
+```
+The following output depicts the head of this time series object. As we can see, the data is on a weekly base and stock price information is included for the nine stocks in the variable *ticker_csv*:
+``` {r echo = FALSE}
+head(stock_prices)
+```
+
+We are now going to convert this data into log returns:
+```{r}
+# Define function for calculating log returns
+calc_log_returns <- function(stock_prices) {
+  log_returns <- stock_prices
+  for (i in 1:ncol(stock_prices)) {
+    log_returns[, i] <- diff(log(stock_prices[, i]))
+  }
+  return(log_returns)
+}
+
+# Calculate log returns
+log_returns  <- calc_log_returns(stock_prices)
+log_ret_cl   <- log_returns["1998-01-01/2018-12-31"]
+nr_cols      <- ncol(log_returns)
+ticker_sort <- sort(ticker_csv)
+```
+The following output depicts the data conversion:
+``` {r echo = FALSE}
+head(log_returns)
+```
+Given that now we have the basic data for our analysis we are going to define the date inputs for the time window we will base our analysis on. In this case, we decided to choose January 1, 2012 as starting date with the portfolio being active for seven years, ten cali years (what is it Patrik?) and 52 weeks per year. The analysis output will be saved in the respective directory path of the variable *folder*:
+```{r, tidy.opts=list(width.cutoff=60)}
+# Input for the dates                            ### << INPUT <<
+start_date   <- "2012-01-01"
+port_span    <- 7 # in years
+cali_years   <- 10 # in years
+wpy          <- 52
+folder       <- paste("Output/", year(start_date), "-", year(start_date) + 
+                        port_span - 1, 
+                      "_", cali_years, "cali_", reb_int, sep = "")
+```
+Based on these parameters, we do X (Patrik, what are we doing here? :D)
+``` {r  tidy.opts=list(width.cutoff=60)}
+# Define function for calculating dates: This function also checks 
+#that port_start and cali_start have the same length and cuts the longer if not
+calc_dates <- function(stock_prices, start_date, port_span, cali_years, reb_int) {
+    index <- as.character(index(stock_prices))
+    port_start_date <- as.Date(index[year(index) == year(start_date)][1])
+    port_start_row  <- which(index == as.character(port_start_date))
+    port_end_row    <- port_start_row + port_span * wpy -1
+    port_end_date   <- as.Date(index[port_end_row])
+    port_start      <- as.Date(index[port_start_row:port_end_row])
+    port_rows       <- match(as.character(port_start), index)
+    cali_start_row  <- port_start_row - wpy * cali_years
+    cali_start_date <- as.Date(index[cali_start_row])
+    cali_end_row    <- cali_start_row + port_span * wpy - 1
+    cali_end_date   <- as.Date(index[cali_end_row])
+    cali_start      <- as.Date(index[cali_start_row:cali_end_row])
+    cali_rows       <- match(as.character(cali_start), index)
+    all_start       <- as.Date(index[cali_start_row:port_end_row])
+  if (length(port_start) == length(cali_start)) {
+    return(list(all_start, port_start, cali_start, port_rows, cali_rows))
+  } else {
+    v <- data.frame(cali_start = length(cali_start), port_start = 
+                      length(port_start))
+    l <- abs(length(cali_start) - length(port_start))
+    max <- apply(v, MARGIN = 1, max)
+    if (max == length(cali_start)) {
+      cali_start <- cali_start[-((length(cali_start) - l +
+                                    1):(length(cali_start)))]
+    } else {
+      port_start <- port_start[-((length(port_start) - l + 1
+                                  ):(length(port_start)))]
+    }
+    return(list(all_start, port_start, cali_start, port_rows, cali_rows))
+  }
+}
+```
+Through these steps, we then assign the relevant dates and subsets of the stock returns into the respective variables. Through this, we align the overall data with *port_data* and *cali_data* (specify port_data und cali_data based on input Patrik):
+```{r  tidy.opts=list(width.cutoff=60)}
+# Calculate dates
+dates <- calc_dates(stock_prices, start_date, port_span, cali_years, reb_int)
+all_start    <- dates[[1]]
+port_start   <- dates[[2]]
+cali_start   <- dates[[3]]
+port_rows    <- dates[[4]]
+cali_rows    <- dates[[5]]
+
+# Calculates data subsets according to parameters
+port_data    <- log_returns[port_start]
+cali_data    <- log_returns[cali_start]
+all_data     <- log_returns[all_start]
+```
+After this step, we now have prepared the time series adequately to start our mean-variance analysis.
+
+## 3 Covariance matrix calculation
+
+In the third step, we calculate the covariance matrices which we need to calculate the weights of the minimum variance portfolio. The respective formulas are described in the *Overview* chapter of this document:
+
+```{r  tidy.opts=list(width.cutoff=60)}
+# Define function to calculate the covariance matrix 
+#(required as input for portfolio optimization)
+calc_all_cov_forecast <- function (log_returns, port_start, cali_rows, port_rows) {
+  all_forecast <- list()
+  all_cors <- list()
+  for (i in 1:length(port_start)) {
+    dataset <- log_returns[cali_rows[i]:port_rows[i], ]
+    all_forecast[[i]] <- cov(dataset)
+    all_cors[[i]] <- cor(dataset)
+  }
+  names(all_forecast) <- port_start
+  return(list(all_forecast, all_cors))
+}
+
+# Calc covariance matrices
+stat_output        <- calc_all_cov_forecast(log_returns, port_start, cali_rows,
+                                            port_rows)
+all_forecast_stat  <- stat_output[[1]]
+fore_cor_stat      <- stat_output[[2]]
+
+```
+
+## 4 Portfolio weights calculation
+Given that we now have the coviance matrices, we can calculate the portfolio weights. First, we program the functions to calculate the minimum variance portfolio weights. The function *calc_pf_weights* calculates the weights for each individual asset/portfolio (Patrik?) whereas the function *calc_all_pf_weights* returns the weights for the combined portfolio (Patrik stimmt das?):
+``` {r tidy.opts=list(width.cutoff=60)}
+# Define functions to calculate (all) portfolio weights based on goal of
+#mean-variance 
+
+calc_pf_weights <- function(a_cov_mat) {
+  ones <- c(rep(1, nrow(a_cov_mat)))
+  weights <- (solve(a_cov_mat) %*% ones) 
+  weights <- weights / sum(weights)
+  return(weights)
+}
+
+calc_all_pf_weights <- function(all_cov_matrices) {
+  all_pf_weights <- list()
+  for (i in 1:length(all_cov_matrices)) {
+    all_pf_weights[[i]] <- calc_pf_weights(all_cov_matrices[[i]])
+  }
+  names(all_pf_weights) <- port_start
+  return(all_pf_weights)
+}
+```
+The same approach is taken to return the weights for the equal-weight portfolio with the difference being that now the weights are not based on the stock's variance but simply calculated through 1/n:
+```{r  tidy.opts=list(width.cutoff=60)}
+# Define functions to "calculate" equal portfolio weights
+
+calc_pf_weights_eql <- function(a_cov_mat) {
+  ones <- c(rep(1, nrow(a_cov_mat)))
+  weights <- ((1 / ncol(log_returns)) %*% ones)
+  weights <- weights / sum(weights)
+  return(weights)
+}
+
+calc_all_pf_weights_eql <- function(all_cov_matrices) {
+  all_pf_weights_eql <- list()
+  for (i in 1:length(all_cov_matrices)) {
+    all_pf_weights_eql[[i]] <- calc_pf_weights_eql(all_cov_matrices[[i]])
+  }
+  names(all_pf_weights_eql) <- port_start
+  return(all_pf_weights_eql)
+}
+```
+After setting up the functions, we can now calculate the portfolio weights:
+```{r tidy.opts=list(width.cutoff=60)}
+# Calculate portfolio weights of both portfolios
+pf_weights_stat    <- calc_all_pf_weights(all_forecast_stat)
+pf_weights_eql    <- calc_all_pf_weights_eql(all_forecast_stat)
+```
+The following output depicts the first few rows of each portfolio. Negative values are short positions:
+```{r}
+head(pf_weights_stat)
+head(pf_weights_eql)
+```
+As we can see, the weights significantly differ between the minimum variance portfolio and equal-weight portfolio. Based on these values, we are now going to calculate the performance for each portfolio.
+
+## 5 Portfolio performance calculation
+
+The function *calc_port_returns* calculates the respective portfolio return accounting for the individual stock returns, portfolio weights and the rebalancing intervall (Patrik does it rebalance? If yes, how?):
+```{r tidy.opts=list(width.cutoff=60)}
+# Define function to calc portfolio returns and give the output of a 
+#return time series
+calc_port_returns <- function (port_data, pf_weights, reb_int) {
+  port_ret <- port_data[, -c(1:ncol(port_data))]
+  for (i in 1:nrow(port_ret)) {
+    weights <- unlist(pf_weights[[i]])
+    port_ret[i] <- as.numeric(as.numeric(port_data[i, ]) %*% as.numeric(weights))
+  }
+  return(port_ret)
+}
+```
+In the next step, we calculate the portfolio return for the two portfolios. First, we calculate the individual returns within the portfolios.
+```{r tidy.opts=list(width.cutoff=60), warning = FALSE}
+# Calculate all portfolio returns
+port_ret_stat      <- calc_port_returns(port_data, pf_weights_stat, reb_int)
+port_ret_eql       <- calc_port_returns(port_data, pf_weights_eql, reb_int)
+```
+Then we calculate the overall portfolio value based on an initial index (*start_value*) of 100 through multiplying the respective current portfolio value with the portfolio return of the given period. Also we calculate the performance difference between the two portfolios in a separate column (*port_all$DIFF*) of the data frame *port_all*:
+```{r tidy.opts=list(width.cutoff=60), warning = FALSE}
+# Define function to calc portfolio returns and give the output of a 
+# return time series
+
+calc_port_value <- function (port_data, ret_series_eql, ret_series_stat,
+                             start_value) {
+  port_all <- port_data[, -c(1:ncol(port_data))]
+  port_all$EQL <- start_value
+  port_all$STAT <- start_value
+  for (i in 2:nrow(port_all)) {
+    port_all$EQL[i] <- as.numeric(port_all$EQL[i - 1]) *
+      as.numeric(exp(ret_series_eql[i]))
+    port_all$STAT[i] <- as.numeric(port_all$STAT[i - 1]) *
+      as.numeric(exp(ret_series_stat[i]))
+  }
+  return (port_all)
+}
+
+# Calculate the portfolio value based on the returns
+port_all           <- calc_port_value(port_data, port_ret_eql, port_ret_stat, 100)
+port_all$DIFF      <- port_all$EQL - port_all$STAT
+```
+Based on these values, we create the outputs in our sixth and last step.
+
+## 6 Outputs
+
+As first output, we generate a csv file containing the annualised mean and annualised standard deviation of each portfolio. Hereby, *ann_fac* is the annualisation factor based on the 52 weeks of the year specified at the beginning. We save the output in a new output folder of the chosen work directory:
+```{r tidy.opts=list(width.cutoff=60)}
+# Table output
+ann_fac <- wpy
+m <- matrix(c(mean(port_ret_eql) * ann_fac, 
+              mean(port_ret_stat) * ann_fac, 
+              sd(port_ret_eql) * sqrt(ann_fac), 
+              sd(port_ret_stat) * sqrt(ann_fac)), 
+            nrow = 2, byrow = TRUE)
+colnames(m)        <- c("EQL", "STAT")
+row.names(m)       <- c("Annualised mean", "Annualised standard deviation")
+if(dir.exists(folder) == FALSE) (dir.create(file.path(folder), recursive = TRUE))
+write.csv(m, file = paste(folder, "/stats.csv", sep = ""))
+```
+The following output depicts the result for m:
+```{r tidy.opts=list(width.cutoff=60)}
+# Table output
+print(m)
+```
+We can see that for the minimum variance strategy the annualised mean is way higher with a simultaneously lower standard deviation, making the strategy the more successful one for the analysed stocks and time period.
+
+In a next step, we plot the portfolio performance development and output it in pdf format. The output is saved in the new output folder we created above together with the table output. To create the plot, we read our data into a new data frame *p* to concentrate the data into one variable which eases code reading. Then we set up the plot and define the several axes and bars:
+```{r results = 'hide', message = FALSE, warning = FALSE, tidy.opts=list(width.cutoff=60)}
+p <- data.frame(Date = index(port_all), EQL = port_all$EQL, 
+                STAT = port_all$STAT, DIFF = port_all$DIFF)
+
+if (export_plot == TRUE) {pdf(file = paste(folder, "/port.pdf", sep = ""))}
+ggplot(p) + 
+  geom_bar(aes(x = Date, y = DIFF * max(max(p$EQL), max(p$STAT)) / 50), 
+           stat = "identity", fill = "gray", alpha = 0.8) + 
+  geom_line(aes(x = Date, y = EQL, color = "EQL"), size = 0.8) + 
+  geom_line(aes(x = Date, y = STAT, color = "STAT"), size = 0.8) + 
+  scale_y_continuous(
+    name = "Portfolio value", 
+    sec.axis = sec_axis(~ . * 50 / max(max(p$EQL), max(p$STAT)), 
+                        name = "Difference"),
+    limits = c(min(p$DIFF) * max(max(p$EQL), max(p$STAT)) /  50,
+               max(max(p$EQL), max(p$STAT)))) + 
+  scale_colour_manual(name = '', values = c('STAT' = 'black', 'EQL' = 'red')) +
+  labs(title = paste("Performance from ", year(start_date), "-",
+                     year(start_date) + port_span - 1, ", ", 
+                     cali_years, " years calibration, ", reb_int, 
+                     " rebalancing", sep = ""))
+
+dev.off()
+```
+
+The resulting and as pdf saved chart looks as follows for the portfolio development:
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=60)}
+ggplot(p) + 
+  geom_bar(aes(x = Date, y = DIFF * max(max(p$EQL), max(p$STAT)) / 50), 
+           stat = "identity", fill = "gray", alpha = 0.8) + 
+  geom_line(aes(x = Date, y = EQL, color = "EQL"), size = 0.8) + 
+  geom_line(aes(x = Date, y = STAT, color = "STAT"), size = 0.8) + 
+  scale_y_continuous(
+    name = "Portfolio value", 
+    sec.axis = sec_axis(~ . * 50 / max(max(p$EQL), max(p$STAT)), name = "Difference"),
+    limits = c(min(p$DIFF) * max(max(p$EQL), max(p$STAT)) /  50, max(max(p$EQL), max(p$STAT)))) + 
+  scale_colour_manual(name = '', values = c('STAT' = 'black', 'EQL' = 'red')) +
+  labs(title = paste("Performance from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
+                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
+```
+
+Last but not least, we plot the weight development of the two portfolios and save them as a pdf in the output folder as well:
+```{r results = 'hide', message = FALSE, warning = FALSE, tidy.opts=list(width.cutoff=60)}
+Date <- as.Date(names(all_forecast_stat))
+
+if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_stat.pdf", sep = ""))}
+weight_mat_stat <- data.frame(matrix(NA, nrow = length(pf_weights_stat),
+                                     ncol = length(ticker_sort)))
+for (i in 1:nrow(weight_mat_stat)) {
+  weight_mat_stat[i, ] <- unlist(pf_weights_stat[[i]])
+}
+colnames(weight_mat_stat) <- ticker_sort
+weight_mat_stat$Date <- Date
+weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights,
+                               ticker_sort[1]:ticker_sort[nr_cols], 
+                               factor_key = T)
+
+ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
+  geom_area(aes(fill = Company), position = 'stack') + 
+  scale_fill_brewer(palette = "Spectral") + 
+  labs(title = paste("STAT weights from ", year(start_date), "-", 
+                     year(start_date) + port_span - 1, ", ", 
+                     cali_years, " years calibration, ", reb_int, 
+                     " rebalancing", sep = ""))
+dev.off()
+
+if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_stat.pdf", sep = ""))}
+weight_mat_stat <- data.frame(matrix(NA, nrow = length(pf_weights_stat), 
+                                     ncol = length(ticker_sort)))
+for (i in 1:nrow(weight_mat_stat)) {
+  weight_mat_stat[i, ] <- unlist(pf_weights_stat[[i]])
+}
+colnames(weight_mat_stat) <- ticker_sort
+weight_mat_stat$Date <- Date
+weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights,
+                               ticker_sort[1]:ticker_sort[nr_cols], 
+                               factor_key = T)
+
+ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
+  geom_area(aes(fill = Company), position = 'stack') + 
+  scale_fill_brewer(palette = "Spectral") + 
+  labs(title = paste("STAT weights from ", year(start_date), "-", 
+                     year(start_date) + port_span - 1, ", ", 
+                     cali_years, " years calibration, ", reb_int, 
+                     " rebalancing", sep = ""))
+dev.off()
+```
+
+The resulting chart looks as follows:
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=60)}
+ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
+  geom_area(aes(fill = Company), position = 'stack') + 
+  scale_fill_brewer(palette = "Spectral") + 
+  labs(title = paste("STAT weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
+                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
+dev.off()
+
+if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_stat.pdf", sep = ""))}
+weight_mat_stat <- data.frame(matrix(NA, nrow = length(pf_weights_stat), ncol = length(ticker_sort)))
+for (i in 1:nrow(weight_mat_stat)) {
+  weight_mat_stat[i, ] <- unlist(pf_weights_stat[[i]])
+}
+colnames(weight_mat_stat) <- ticker_sort
+weight_mat_stat$Date <- Date
+weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights, ticker_sort[1]:ticker_sort[nr_cols], factor_key = T)
+
+ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
+  geom_area(aes(fill = Company), position = 'stack') + 
+  scale_fill_brewer(palette = "Spectral") + 
+  labs(title = paste("STAT weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
+                     cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
+```
+
+With this chart, we reached the end of the script. Of course, the user can play around with the different parameters (such as time period, frequency of rebalancing, stocks in the portfolio) to get different results and complement the current charts with different outputs.
