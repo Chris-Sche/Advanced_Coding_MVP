@@ -2,7 +2,7 @@
 
 # Authors:    Patrik Münch, patrik.muench@student.unisg.ch
 #             Christoph Schenker, christoph.schenker@student.unisg.ch
-# Date:       [...]
+# Date:       16.05.2020
 # Class:      Programming with advanced computer languages, Spring Semester 2020
 # Professor:  Dr. Mario Silic
 
@@ -35,6 +35,7 @@ library(reshape2)
 library(fBasics)
 library(gridExtra)
 library(rstudioapi)
+library(formatR)
 
 #remove current variables in R environment
 rm(list = ls())
