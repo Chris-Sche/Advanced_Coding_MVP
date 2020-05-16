@@ -3,7 +3,7 @@ title: "Minimum Variance Portfolion in Action"
 author:
 - Patrik Münch (patrik.muench@student.unisg.ch)
 - Christoph Schenker (christoph.schenker@student.unisg.ch)
-date: "May XX, 2020"
+date: "May 16, 2020"
 output:
   html_document:
     df_print: paged
@@ -438,7 +438,7 @@ weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights,
 ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
   geom_area(aes(fill = Company), position = 'stack') + 
   scale_fill_brewer(palette = "Spectral") + 
-  labs(title = paste("STAT weights from ", year(start_date), "-", 
+  labs(title = paste("Minimum variance weights from ", year(start_date), "-", 
                      year(start_date) + port_span - 1, ", ", 
                      cali_years, " years calibration, ", reb_int, 
                      " rebalancing", sep = ""))
@@ -459,7 +459,7 @@ weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights,
 ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
   geom_area(aes(fill = Company), position = 'stack') + 
   scale_fill_brewer(palette = "Spectral") + 
-  labs(title = paste("STAT weights from ", year(start_date), "-", 
+  labs(title = paste("Minimum variance weights from ", year(start_date), "-", 
                      year(start_date) + port_span - 1, ", ", 
                      cali_years, " years calibration, ", reb_int, 
                      " rebalancing", sep = ""))
@@ -472,7 +472,7 @@ The resulting chart looks as follows. While changes in weights can be observed, 
 ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
   geom_area(aes(fill = Company), position = 'stack') + 
   scale_fill_brewer(palette = "Spectral") + 
-  labs(title = paste("STAT weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
+  labs(title = paste("Minimum variance weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
                      cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
 dev.off()
 
@@ -488,7 +488,7 @@ weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights, ticker_sort[1]
 ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
   geom_area(aes(fill = Company), position = 'stack') + 
   scale_fill_brewer(palette = "Spectral") + 
-  labs(title = paste("STAT weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
+  labs(title = paste("Minimum variance weights from ", year(start_date), "-", year(start_date) + port_span - 1, ", ", 
                      cali_years, " years calibration, ", reb_int, " rebalancing", sep = ""))
 ```
 
