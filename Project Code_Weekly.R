@@ -2,18 +2,13 @@
 
 # Authors:    Patrik Münch, patrik.muench@student.unisg.ch
 #             Christoph Schenker, christoph.schenker@student.unisg.ch
-# Date:       16.07.2020
+# Date:       17.07.2020
 # Class:      Programming with advanced computer languages, Spring Semester 2020
 # Professor:  Dr. Mario Silic
 
-# =========================== REFERENCES ============================
-
-# http://eclr.humanities.manchester.ac.uk/index.php/R_GARCH
-# https://www.youtube.com/watch?v=8VXmRl5gzEU
-
 # =========================== PREPARATION ===========================
 
-#https://stackoverflow.com/questions/4090169/elegant-way-to-check-for-missing-packages-and-install-them
+# https://stackoverflow.com/questions/4090169/elegant-way-to-check-for-missing-packages-and-install-them
 # Install missing packages for the code
 list_of_packages <- c("xts", "lubridate", "Quandl",
                       "ggplot2", "tidyr", "tidyverse", "scales", "tseries",
@@ -21,6 +16,7 @@ list_of_packages <- c("xts", "lubridate", "Quandl",
                       "formatR")
 new_packages <- list_of_packages[!(list_of_packages %in% installed.packages()[,"Package"])]
 if(length(new_packages)) install.packages(new_packages)
+
 # Load and attach packages
 library(xts)
 library(lubridate)
