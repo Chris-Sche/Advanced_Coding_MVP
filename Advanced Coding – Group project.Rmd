@@ -246,10 +246,10 @@ calc_all_cov_forecast <- function (log_returns, port_start, cali_rows, port_rows
 }
 
 # Calc covariance matrices
-stat_output        <- calc_all_cov_forecast(log_returns, port_start, cali_rows,
+meanvar_output        <- calc_all_cov_forecast(log_returns, port_start, cali_rows,
                                             port_rows)
-all_forecast_stat  <- stat_output[[1]]
-fore_cor_stat      <- stat_output[[2]]
+all_forecast_meanvar  <- meanvar_output[[1]]
+fore_cor_meanvar      <- meanvar_output[[2]]
 
 ```
 
@@ -295,12 +295,12 @@ calc_all_pf_weights_eql <- function(all_cov_matrices) {
 After setting up the functions, we can now calculate the portfolio weights:
 ```{r tidy.opts=list(width.cutoff=60)}
 # Calculate portfolio weights of both portfolios
-pf_weights_stat    <- calc_all_pf_weights(all_forecast_stat)
-pf_weights_eql    <- calc_all_pf_weights_eql(all_forecast_stat)
+pf_weights_meanvar    <- calc_all_pf_weights(all_forecast_meanvar)
+pf_weights_eql    <- calc_all_pf_weights_eql(all_forecast_meanvar)
 ```
 The following output depicts the first few set of weights of each portfolio (negative values are short positions):
 ```{r}
-head(pf_weights_stat)
+head(pf_weights_meanvar)
 head(pf_weights_eql)
 ```
 One can easily observe that the minimum variance portfolio constantly adapts its weights, while the equal-weight portfolio naturally always uses the same weights. Based on these values, we are now going to calculate the performance and thus the returns for each portfolio.
@@ -322,29 +322,29 @@ calc_port_returns <- function (port_data, pf_weights, reb_int) {
 In the next step, we calculate the portfolio return for the two portfolios. First, we calculate the individual returns within the portfolios.
 ```{r tidy.opts=list(width.cutoff=60), warning = FALSE}
 # Calculate all portfolio returns
-port_ret_stat      <- calc_port_returns(port_data, pf_weights_stat, reb_int)
+port_ret_meanvar      <- calc_port_returns(port_data, pf_weights_meanvar, reb_int)
 port_ret_eql       <- calc_port_returns(port_data, pf_weights_eql, reb_int)
 ```
 Then we calculate the overall portfolio value based on an initial index (*start_value*) of 100 through multiplying the respective current portfolio value with the portfolio return of the given period. Also we calculate the performance difference between the two portfolios in a separate column (*port_all$DIFF*) of the data frame *port_all*:
 ```{r tidy.opts=list(width.cutoff=60), warning = FALSE}
 # Define function to calc portfolio returns and give the output of a return time series
-calc_port_value <- function (port_data, ret_series_eql, ret_series_stat,
+calc_port_value <- function (port_data, ret_series_eql, ret_series_meanvar,
                              start_value) {
   port_all <- port_data[, -c(1:ncol(port_data))]
   port_all$EQL <- start_value
-  port_all$STAT <- start_value
+  port_all$MEANVAR <- start_value
   for (i in 2:nrow(port_all)) {
     port_all$EQL[i] <- as.numeric(port_all$EQL[i - 1]) *
       as.numeric(exp(ret_series_eql[i]))
-    port_all$STAT[i] <- as.numeric(port_all$STAT[i - 1]) *
-      as.numeric(exp(ret_series_stat[i]))
+    port_all$MEANVAR[i] <- as.numeric(port_all$MEANVAR[i - 1]) *
+      as.numeric(exp(ret_series_meanvar[i]))
   }
   return (port_all)
 }
 
 # Calculate the portfolio value based on the returns
-port_all           <- calc_port_value(port_data, port_ret_eql, port_ret_stat, 100)
-port_all$DIFF      <- port_all$EQL - port_all$STAT
+port_all           <- calc_port_value(port_data, port_ret_eql, port_ret_meanvar, 100)
+port_all$DIFF      <- port_all$EQL - port_all$MEANVAR
 ```
 Based on these values, we create the outputs in our sixth and last step.
 
@@ -355,11 +355,11 @@ As first output, we generate a csv file containing the annualised mean and annua
 # Table output
 ann_fac <- wpy
 m <- matrix(c(mean(port_ret_eql) * ann_fac, 
-              mean(port_ret_stat) * ann_fac, 
+              mean(port_ret_meanvar) * ann_fac, 
               sd(port_ret_eql) * sqrt(ann_fac), 
-              sd(port_ret_stat) * sqrt(ann_fac)), 
+              sd(port_ret_meanvar) * sqrt(ann_fac)), 
             nrow = 2, byrow = TRUE)
-colnames(m)        <- c("EQL", "STAT")
+colnames(m)        <- c("EQL", "MEANVAR")
 row.names(m)       <- c("Annualised mean", "Annualised standard deviation")
 if(dir.exists(folder) == FALSE) (dir.create(file.path(folder), recursive = TRUE))
 write.csv(m, file = paste(folder, "/stats.csv", sep = ""))
@@ -376,21 +376,21 @@ In a next step, we plot the portfolio performance development and output it in p
 ```{r results = 'hide', message = FALSE, warning = FALSE, tidy.opts=list(width.cutoff=60)}
 # Plot development of both portfolios (indexed at 100)
 p <- data.frame(Date = index(port_all), EQL = port_all$EQL, 
-                STAT = port_all$STAT, DIFF = port_all$DIFF)
+                MEANVAR = port_all$MEANVAR, DIFF = port_all$DIFF)
 
 if (export_plot == TRUE) {pdf(file = paste(folder, "/port.pdf", sep = ""))}
 ggplot(p) + 
-  geom_bar(aes(x = Date, y = DIFF * max(max(p$EQL), max(p$STAT)) / 50), 
-           stat = "identity", fill = "gray", alpha = 0.8) + 
+  geom_bar(aes(x = Date, y = DIFF * max(max(p$EQL), max(p$MEANVAR)) / 50), 
+           meanvar = "identity", fill = "gray", alpha = 0.8) + 
   geom_line(aes(x = Date, y = EQL, color = "EQL"), size = 0.8) + 
-  geom_line(aes(x = Date, y = STAT, color = "STAT"), size = 0.8) + 
+  geom_line(aes(x = Date, y = MEANVAR, color = "MEANVAR"), size = 0.8) + 
   scale_y_continuous(
     name = "Portfolio value", 
-    sec.axis = sec_axis(~ . * 50 / max(max(p$EQL), max(p$STAT)), 
+    sec.axis = sec_axis(~ . * 50 / max(max(p$EQL), max(p$MEANVAR)), 
                         name = "Difference"),
-    limits = c(min(p$DIFF) * max(max(p$EQL), max(p$STAT)) /  50,
-               max(max(p$EQL), max(p$STAT)))) + 
-  scale_colour_manual(name = '', values = c('STAT' = 'black', 'EQL' = 'red')) +
+    limits = c(min(p$DIFF) * max(max(p$EQL), max(p$MEANVAR)) /  50,
+               max(max(p$EQL), max(p$MEANVAR)))) + 
+  scale_colour_manual(name = '', values = c('MEANVAR' = 'black', 'EQL' = 'red')) +
   labs(title = paste("Performance from ", year(start_date), "-",
                      year(start_date) + port_span - 1, ", ", 
                      cali_years, " years calibration, ", reb_int, 
@@ -424,21 +424,21 @@ ggplot(p) +
 Last but not least, we plot the weight development of the mean-variance portfolio to get a better understanding on how dynamic the model has adjusted its portfolio weights over the time horizon: 
 ```{r results = 'hide', message = FALSE, warning = FALSE, tidy.opts=list(width.cutoff=60)}
 # Plot weight development of the minimum variance portfolios 
-Date <- as.Date(names(all_forecast_stat))
+Date <- as.Date(names(all_forecast_meanvar))
 
-if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_stat.pdf", sep = ""))}
-weight_mat_stat <- data.frame(matrix(NA, nrow = length(pf_weights_stat),
+if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_meanvar.pdf", sep = ""))}
+weight_mat_meanvar <- data.frame(matrix(NA, nrow = length(pf_weights_meanvar),
                                      ncol = length(ticker_sort)))
-for (i in 1:nrow(weight_mat_stat)) {
-  weight_mat_stat[i, ] <- unlist(pf_weights_stat[[i]])
+for (i in 1:nrow(weight_mat_meanvar)) {
+  weight_mat_meanvar[i, ] <- unlist(pf_weights_meanvar[[i]])
 }
-colnames(weight_mat_stat) <- ticker_sort
-weight_mat_stat$Date <- Date
-weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights,
+colnames(weight_mat_meanvar) <- ticker_sort
+weight_mat_meanvar$Date <- Date
+weight_mat_meanvar_long <- gather(weight_mat_meanvar, Company, Weights,
                                ticker_sort[1]:ticker_sort[nr_cols], 
                                factor_key = T)
 
-ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
+ggplot(weight_mat_meanvar_long, aes(x = Date, y = Weights)) + 
   geom_area(aes(fill = Company), position = 'stack') + 
   scale_fill_brewer(palette = "Spectral") + 
   labs(title = paste("Minimum variance weights from ", year(start_date), "-", 
@@ -448,19 +448,19 @@ ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) +
   theme(plot.title = element_text(size = 12))
 dev.off()
 
-if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_stat.pdf", sep = ""))}
-weight_mat_stat <- data.frame(matrix(NA, nrow = length(pf_weights_stat), 
+if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_meanvar.pdf", sep = ""))}
+weight_mat_meanvar <- data.frame(matrix(NA, nrow = length(pf_weights_meanvar), 
                                      ncol = length(ticker_sort)))
-for (i in 1:nrow(weight_mat_stat)) {
-  weight_mat_stat[i, ] <- unlist(pf_weights_stat[[i]])
+for (i in 1:nrow(weight_mat_meanvar)) {
+  weight_mat_meanvar[i, ] <- unlist(pf_weights_meanvar[[i]])
 }
-colnames(weight_mat_stat) <- ticker_sort
-weight_mat_stat$Date <- Date
-weight_mat_stat_long <- gather(weight_mat_stat, Company, Weights,
+colnames(weight_mat_meanvar) <- ticker_sort
+weight_mat_meanvar$Date <- Date
+weight_mat_meanvar_long <- gather(weight_mat_meanvar, Company, Weights,
                                ticker_sort[1]:ticker_sort[nr_cols], 
                                factor_key = T)
 
-ggplot(weight_mat_stat_long, aes(x = Date, y = Weights)) + 
+ggplot(weight_mat_meanvar_long, aes(x = Date, y = Weights)) + 
   geom_area(aes(fill = Company), position = 'stack') + 
   scale_fill_brewer(palette = "Spectral") + 
   labs(title = paste("Minimum variance weights (", year(start_date), "-", 
