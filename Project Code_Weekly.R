@@ -2,7 +2,7 @@
 
 # Authors:    Patrik Münch, patrik.muench@student.unisg.ch
 #             Christoph Schenker, christoph.schenker@student.unisg.ch
-# Date:       16.05.2020
+# Date:       16.07.2020
 # Class:      Programming with advanced computer languages, Spring Semester 2020
 # Professor:  Dr. Mario Silic
 
