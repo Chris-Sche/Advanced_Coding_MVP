@@ -48,7 +48,7 @@ Having discussed the mathematics of this optimisation approach on a high level, 
 
 In the first step, we download and attach the respective R packages which are required to run the code. We set up the code so that it checks for missing packages and directly installs them instead of working e.g. with the *require()* function and make the user install the packages manually. The following paragraph shows which code we used to do so:
 ``` {r  warnings = FALSE, message = FALSE, tidy = TRUE, tidy.opts=list(width.cutoff=60)}
-#install missing packages for the code
+# Install missing packages for the code
 list_of_packages <- c("rugarch", "rmgarch", "xts", "lubridate", "Quandl",
                       "ggplot2", "tidyr", "tidyverse", "scales", "tseries",
                       "reshape2", "fBasics", "gridExtra", "rstudioapi",
@@ -56,7 +56,7 @@ list_of_packages <- c("rugarch", "rmgarch", "xts", "lubridate", "Quandl",
 new_packages <- list_of_packages[!(list_of_packages %in% installed.packages()[,"Package"])]
 if(length(new_packages)) install.packages(new_packages)
 
-#load and attach packages
+# Load and attach packages
 library(rugarch)
 library(rmgarch)
 library(xts)
@@ -79,8 +79,8 @@ Then, we remove all current variables in the R environment to prevent any interf
 rm(list = ls())
 ```
 In a final step to prepare the environment, we let the user choose the working directory in which he saved the input csv file. Through this, we ensure that the code finds the required input sources and also saves the output into the same folder where the input is at a later stage:
-```
-#make user select the directory with the input csv document
+``` {r}
+# Make user select the directory with the input csv document
 WorkingDir <- NULL
 
 while(is.null(WorkingDir)){
@@ -120,6 +120,7 @@ ticker_csv   <- c("SAMSUNG",
 ```
 Next, we read in the source data through creating the function *source_data*. This initial data consists of a csv file which is in the folder the user chose in the beginning. The data is then converted into the *xts* time series format and into weekly data points. Also we set the rebalancing interval and pick the stocks based on the *ticker_csv* variable from the step before:
 ``` {r, tidy.opts=list(width.cutoff=60)}
+# Define function to source data
 source_data <- function(source) {
     toDate <- function(x) as.Date(x, origin = "1986-03-86", format = "%d.%m.%y")
     Time_series_zoo <- read.zoo("RS_Time series_v3.csv", header = TRUE, sep = ","
@@ -129,7 +130,7 @@ source_data <- function(source) {
     # Convert daily to weekly data
     Time_series_weekly_xts <- to.weekly(Time_series_xts, OHLC = FALSE)
     
-    # Set rebalancing interval and pick stocks    << INPUT <<
+    # Set rebalancing interval and pick stocks
     stock_prices <- Time_series_weekly_xts[, ticker_csv]
     return(stock_prices)
     }
@@ -164,7 +165,7 @@ head(log_returns)
 ```
 Given that we now have the basic data for our analysis we are going to define the date inputs for the time window we will base our analysis on. In this case, we decided to choose January 1, 2012 as starting date with the portfolio being active for seven years, ten calibration years and 52 weeks per year. The calibration years refers to the time horizon of historical data which the model uses at each rebalancing point, thus every week, to recalculate the new weights of the mean variance portfolio. The analysis output will be saved in the respective directory path of the variable *folder*:
 ```{r, tidy.opts=list(width.cutoff=60)}
-# Input for the dates                            ### << INPUT <<
+# Input for the dates                            
 start_date   <- "2012-01-01"
 port_span    <- 7 # in years
 cali_years   <- 10 # in years
@@ -175,8 +176,7 @@ folder       <- paste("Output/", year(start_date), "-", year(start_date) +
 ```
 Based on these parameters, we define a function to assign the appropriate dates in the correct format to our data set. In doing so, we also determine the correct dates for the applied calibration years. This is crucial as the mechanics of our model rely on a consistent date format among the calibration and the portfolio span. 
 ``` {r  tidy.opts=list(width.cutoff=60)}
-# Define function for calculating dates: This function also checks 
-#that port_start and cali_start have the same length and cuts the longer if not
+# Define function for calculating dates: This function also checks that port_start and cali_start have the same length and cuts the longer if not
 calc_dates <- function(stock_prices, start_date, port_span, cali_years, reb_int) {
     index <- as.character(index(stock_prices))
     port_start_date <- as.Date(index[year(index) == year(start_date)][1])
@@ -232,8 +232,7 @@ After this step, we now have prepared the time series adequately to start our me
 In the third step, we calculate the covariance matrices which we need to calculate the weights of the minimum variance portfolio. The respective formulas are described in the *Overview* chapter of this document:
 
 ```{r  tidy.opts=list(width.cutoff=60)}
-# Define function to calculate the covariance matrix 
-#(required as input for portfolio optimization)
+# Define function to calculate the covariance matrix (required as input for portfolio optimization)
 calc_all_cov_forecast <- function (log_returns, port_start, cali_rows, port_rows) {
   all_forecast <- list()
   all_cors <- list()
@@ -255,11 +254,9 @@ fore_cor_stat      <- stat_output[[2]]
 ```
 
 ## 4 Portfolio weights calculation
-Given that we now have the coviance matrices, we can calculate the portfolio weights. First, we program the functions to calculate the minimum variance portfolio weights. The function *calc_pf_weights* allows to calulate the optimal weights for a portfolio at a given point in time. This is then used in the following function, *calc_all_pf_weights*, which calculates all portfolio weights over the entire analysed time horizon. In our case this allows to copmute the portfolio weights for at every rebelancing point (thus each week):
+Given that we now have the coviance matrices, we can calculate the portfolio weights. First, we program the functions to calculate the minimum variance portfolio weights. The function *calc_pf_weights* allows to calulate the optimal weights for a portfolio at a given point in time. This is then used in the following function, *calc_all_pf_weights*, which calculates all portfolio weights over the entire analysed time horizon. In our case this allows to compute the portfolio weights at every rebalancing point (thus each week):
 ``` {r tidy.opts=list(width.cutoff=60)}
-# Define functions to calculate (all) portfolio weights based on goal of
-#mean-variance 
-
+# Define functions to calculate (all) portfolio weights based on goal of mean-variance 
 calc_pf_weights <- function(a_cov_mat) {
   ones <- c(rep(1, nrow(a_cov_mat)))
   weights <- (solve(a_cov_mat) %*% ones) 
@@ -279,7 +276,6 @@ calc_all_pf_weights <- function(all_cov_matrices) {
 The same approach is taken to return the weights for the equal-weight portfolio with the difference being that now the weights are not based on the stock's variance but simply calculated through 1/n:
 ```{r  tidy.opts=list(width.cutoff=60)}
 # Define functions to "calculate" equal portfolio weights
-
 calc_pf_weights_eql <- function(a_cov_mat) {
   ones <- c(rep(1, nrow(a_cov_mat)))
   weights <- ((1 / ncol(log_returns)) %*% ones)
@@ -302,19 +298,18 @@ After setting up the functions, we can now calculate the portfolio weights:
 pf_weights_stat    <- calc_all_pf_weights(all_forecast_stat)
 pf_weights_eql    <- calc_all_pf_weights_eql(all_forecast_stat)
 ```
-The following output depicts the first few rows of each portfolio. Negative values are short positions:
+The following output depicts the first few set of weights of each portfolio (negative values are short positions):
 ```{r}
 head(pf_weights_stat)
 head(pf_weights_eql)
 ```
-As we can see, the weights significantly differ between the minimum variance portfolio and equal-weight portfolio. Based on these values, we are now going to calculate the performance for each portfolio.
+One can easily observe that the minimum variance portfolio constantly adapts its weights, while the equal-weight portfolio naturally always uses the same weights. Based on these values, we are now going to calculate the performance and thus the returns for each portfolio.
 
 ## 5 Portfolio performance calculation
 
 The function *calc_port_returns* calculates the respective portfolio returns accounting for the individual stock returns, portfolio weights and the changing weights for the mean- variance portfolio as defined by the rebalancing interval:
 ```{r tidy.opts=list(width.cutoff=60)}
-# Define function to calc portfolio returns and give the output of a 
-#return time series
+# Define function to calc portfolio returns and give the output of a return time series
 calc_port_returns <- function (port_data, pf_weights, reb_int) {
   port_ret <- port_data[, -c(1:ncol(port_data))]
   for (i in 1:nrow(port_ret)) {
@@ -332,9 +327,7 @@ port_ret_eql       <- calc_port_returns(port_data, pf_weights_eql, reb_int)
 ```
 Then we calculate the overall portfolio value based on an initial index (*start_value*) of 100 through multiplying the respective current portfolio value with the portfolio return of the given period. Also we calculate the performance difference between the two portfolios in a separate column (*port_all$DIFF*) of the data frame *port_all*:
 ```{r tidy.opts=list(width.cutoff=60), warning = FALSE}
-# Define function to calc portfolio returns and give the output of a 
-# return time series
-
+# Define function to calc portfolio returns and give the output of a return time series
 calc_port_value <- function (port_data, ret_series_eql, ret_series_stat,
                              start_value) {
   port_all <- port_data[, -c(1:ncol(port_data))]
@@ -377,10 +370,11 @@ The following output depicts the output result for both strategies:
 # Table output
 print(m)
 ```
-We can see that for the minimum variance strategy the annualised mean is significantly higher with a simultaneously lower standard deviation, making the strategy the more successful one for the analysed stocks and time period.
+We can see that for the minimum variance strategy, the annualised mean is significantly higher with a simultaneously lower standard deviation, making the strategy the more successful one for the analysed stocks and time period.
 
 In a next step, we plot the portfolio performance development and output it in pdf format. The output is saved in the new output folder we created above together with the table output. To create the plot, we read our data into a new data frame *p* to concentrate the data into one variable which eases code reading. Then we set up the plot and define the several axes and bars:
 ```{r results = 'hide', message = FALSE, warning = FALSE, tidy.opts=list(width.cutoff=60)}
+# Plot development of both portfolios (indexed at 100)
 p <- data.frame(Date = index(port_all), EQL = port_all$EQL, 
                 STAT = port_all$STAT, DIFF = port_all$DIFF)
 
@@ -429,6 +423,7 @@ ggplot(p) +
 
 Last but not least, we plot the weight development of the mean-variance portfolio to get a better understanding on how dynamic the model has adjusted its portfolio weights over the time horizon: 
 ```{r results = 'hide', message = FALSE, warning = FALSE, tidy.opts=list(width.cutoff=60)}
+# Plot weight development of the minimum variance portfolios 
 Date <- as.Date(names(all_forecast_stat))
 
 if (export_plot == TRUE) {pdf(file = paste(folder, "/weights_stat.pdf", sep = ""))}
