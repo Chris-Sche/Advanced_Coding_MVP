@@ -3,7 +3,7 @@ title: "Minimum Variance Portfolio in Action"
 author:
 - Patrik Münch (patrik.muench@student.unisg.ch)
 - Christoph Schenker (christoph.schenker@student.unisg.ch)
-date: "May 17, 2020"
+date: "May 18, 2020"
 output:
   pdf_document:
     citation_package: natbib
